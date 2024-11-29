@@ -1,0 +1,74 @@
+app:
+  name: staging-app-bff
+  type: microservice
+  environment: staging
+  namespace: "staging"
+  kind: "Deployment"
+replicaCount: 1
+revisionHistoryLimit: 2
+updateStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 0
+    maxSurge: 1
+terminationGracePeriodSeconds: 60
+image:
+  repository: 676206949677.dkr.ecr.me-central-1.amazonaws.com/two72/app-bff
+  tag: "22679ade"
+  pullPolicy: Always
+services:
+  - name: http
+    type: ClusterIP
+    port: 8080
+    protocol: TCP
+resources:
+  limits:
+    cpu: 20m
+    memory: 40Mi
+  requests:
+    cpu: 5m
+    memory: 20Mi
+envVars:
+  - name: APP_NAME
+    value: staging-app-bff
+  - name: APP_ENV
+    value: staging
+  - name: APP_PORT
+    value: "8080"
+  - name: GIN_MODE
+    value: debug
+  - name: CORS_ALLOWED_ORIGINS
+    value: "*"
+liveness:
+  failureThreshold: 3
+  httpGet:
+    path: /health
+    port: 8080
+    scheme: HTTP
+  initialDelaySeconds: 15
+  periodSeconds: 15
+  timeoutSeconds: 10
+readiness:
+  failureThreshold: 3
+  httpGet:
+    path: /health
+    port: 8080
+    scheme: HTTP
+  initialDelaySeconds: 15
+  periodSeconds: 15
+  successThreshold: 1
+  timeoutSeconds: 10
+ingress:
+  - name: app-bff-ingress
+    class: alb
+    scheme: internet-facing
+    #annotations: 
+      #alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:me-central-1:676206949677:certificate/certificate-id
+      #alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80, "HTTPS": 443}]'
+      #alb.ingress.kubernetes.io/ssl-redirect: '443'
+    hosts:
+      - host: bo.two72.com
+        paths:
+          - path: /
+            pathType: ImplementationSpecific
+            port: 8080

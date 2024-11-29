@@ -89,20 +89,18 @@ cronjob:
 
 ingress:
   - name: myingress1
-    sslTermination: edge
-    type: private
+    class: alb
+    scheme: internet-facing
     annotations: 
-      haproxy.router.openshift.io/timeout: 60s
+      alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:region:account-id:certificate/certificate-id
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80, "HTTPS": 443}]'
+      alb.ingress.kubernetes.io/ssl-redirect: '443'
     hosts:
       - host: chart-example.local
         paths:
           - path: /
             pathType: ImplementationSpecific
             port: 8080
-    tls:
-      hosts:
-        - https-example.foo.com
-      secretName: testsecret-tls
 
 services:
   - name: service-example1

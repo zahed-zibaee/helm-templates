@@ -7,7 +7,6 @@ metadata:
   name: {{ include "base-chart.name" $ }}-{{ .name }}-ingress
   namespace: {{ $.Values.app.namespace }}
   labels:
-    router: {{ .type }}
     {{- include "base-chart.selectorLabels" $ | nindent 4 }}
     {{- if hasKey $.Values "customLabels" }}
     {{- range $.Values.customLabels }}
@@ -15,7 +14,8 @@ metadata:
     {{- end }}
     {{- end }}
   annotations:
-    route.openshift.io/termination: {{ .sslTermination }}
+    kubernetes.io/ingress.class: {{ .class }}
+    alb.ingress.kubernetes.io/scheme: {{ .scheme }}  
     {{- toYaml .annotations | nindent 4 }}
     {{- include "base-chart.annotations" $ | nindent 4 }}
     {{- if hasKey $.Values "customAnnotations" }}
@@ -24,14 +24,6 @@ metadata:
     {{- end }}
     {{- end }}
 spec:
-  {{- if .tls }}
-  tls:
-    - hosts:
-        {{- range .tls.hosts }}
-        - {{ . | quote }}
-        {{- end }}
-      secretName: {{ .tls.secretName }}
-  {{- end }}
   rules:
     {{- range .hosts }}
     - host: {{ .host | quote }}
