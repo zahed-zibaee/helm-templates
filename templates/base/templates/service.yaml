@@ -1,0 +1,128 @@
+{{- if hasKey .Values "services"}}
+{{- $foundClusterIP := false }}
+{{- range .Values.services }}
+  {{- if eq .type "ClusterIP" }}
+    {{- $foundClusterIP = true }}
+  {{- end }}
+{{- end }}
+{{- $LoadBalancerInterDc := false }}
+{{- range .Values.services }}
+  {{- if eq .type "LoadBalancerInterDc" }}
+    {{- $LoadBalancerInterDc = true }}
+  {{- end }}
+{{- end }}
+{{- $LoadBalancerVpnAccess := false }}
+{{- range .Values.services }}
+  {{- if eq .type "LoadBalancerVpnAccess" }}
+    {{- $LoadBalancerVpnAccess = true }}
+  {{- end }}
+{{- end }}
+{{- if $foundClusterIP }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "base-chart.name" $ }}
+  namespace: {{ $.Values.app.namespace }}
+  labels:
+    {{- include "base-chart.selectorLabels" $ | nindent 4 }}
+    {{- if hasKey $.Values "customLabels" }}
+    {{- range $.Values.customLabels }}
+    {{ .name }}: {{ .value }}
+    {{- end }}
+    {{- end }}
+  annotations:
+    {{- include "base-chart.annotations" $ | nindent 4 }}
+    {{- if hasKey $.Values "customAnnotations" }}
+    {{- range $.Values.customAnnotations }}
+    {{ .name }}: {{ .value }}
+    {{- end }}
+    {{- end }}
+spec:
+  type: ClusterIP
+  ports:
+    {{- range .Values.services }}
+    - port: {{ .port }}
+      targetPort: {{ .port }}
+      protocol: {{ .protocol }}
+      {{- if eq .name "metrics" }}
+      name: metrics
+      {{- else }}
+      name: {{ include "base-chart.name" $ }}-{{ .name }}-service
+      {{- end }}
+    {{- end }}
+  selector:
+    {{- include "base-chart.selectorLabels" $ | nindent 4 }}
+{{- end }}
+{{- if $LoadBalancerInterDc }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "base-chart.name" $ }}-load-balancer-inter-dc
+  namespace: {{ $.Values.app.namespace }}
+  labels:
+    {{- include "base-chart.selectorLabels" $ | nindent 4 }}
+    {{- if hasKey $.Values "customLabels" }}
+    {{- range $.Values.customLabels }}
+    {{ .name }}: {{ .value }}
+    {{- end }}
+    {{- end }}
+  annotations:
+    {{- include "base-chart.annotations" $ | nindent 4 }}
+    {{- if hasKey $.Values "customAnnotations" }}
+    {{- range $.Values.customAnnotations }}
+    {{ .name }}: {{ .value }}
+    {{- end }}
+    {{- end }}
+spec:
+  type: LoadBalancer
+  ports:
+    {{- range .Values.services }}
+    {{- if eq .type "LoadBalancerInterDc" }}
+    - port: {{ .port }}
+      targetPort: {{ .port }}
+      protocol: {{ .protocol }}
+      name: {{ include "base-chart.name" $ }}-{{ .name }}-service
+    {{- end }}
+    {{- end }}
+  selector:
+    {{- include "base-chart.selectorLabels" $ | nindent 4 }}
+{{- end }}
+{{- if $LoadBalancerVpnAccess }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "base-chart.name" $ }}-load-balancer-vpn-access
+  namespace: {{ $.Values.app.namespace }}
+  labels:
+    {{- include "base-chart.selectorLabels" $ | nindent 4 }}
+    {{- if hasKey $.Values "customLabels" }}
+    {{- range $.Values.customLabels }}
+    {{ .name }}: {{ .value }}
+    {{- end }}
+    {{- end }}
+  annotations:
+    {{- include "base-chart.annotations" $ | nindent 4 }}
+    {{- if hasKey $.Values "customAnnotations" }}
+    {{- range $.Values.customAnnotations }}
+    {{ .name }}: {{ .value }}
+    {{- end }}
+    {{- end }}
+    #metallb.universe.tf/address-pool: vpn-access
+spec:
+  type: LoadBalancer
+  ports:
+    {{- range .Values.services }}
+    {{- if eq .type "LoadBalancerVpnAccess" }}
+    - port: {{ .port }}
+      targetPort: {{ .port }}
+      protocol: {{ .protocol }}
+      name: {{ include "base-chart.name" $ }}-{{ .name }}-service
+    {{- end }}
+    {{- end }}
+  selector:
+    {{- include "base-chart.selectorLabels" $ | nindent 4 }}
+{{- end }}
+{{- end }}

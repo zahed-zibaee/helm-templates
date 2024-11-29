@@ -1,0 +1,26 @@
+{{- if hasKey .Values "envVars" }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "base-chart.name" . }}-env-cm
+  namespace: {{ .Values.app.namespace }}
+  labels:
+    {{- include "base-chart.selectorLabels" . | nindent 4 }}
+    {{- if hasKey .Values "customLabels" }}
+    {{- range .Values.customLabels }}
+    {{ .name }}: {{ .value }}
+    {{- end }}
+    {{- end }}
+  annotations:
+    {{- include "base-chart.annotations" . | nindent 4 }}
+    {{- if hasKey .Values "customAnnotations" }}
+    {{- range .Values.customAnnotations }}
+    {{ .name }}: {{ .value }}
+    {{- end }}
+    {{- end }}
+data:
+  {{- range .Values.envVars }}
+  {{ .name }}: {{ quote .value }}
+  {{- end }}
+{{- end }}

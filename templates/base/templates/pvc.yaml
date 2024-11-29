@@ -1,0 +1,31 @@
+{{- if hasKey .Values "volumes" }}
+{{- range .Values.volumes }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "base-chart.name" $ }}-{{ .name }}-pvc
+  namespace: {{ $.Values.app.namespace }}
+  labels:
+    {{- include "base-chart.selectorLabels" $ | nindent 4 }}
+    {{- if hasKey $.Values "customLabels" }}
+    {{- range $.Values.customLabels }}
+    {{ .name }}: {{ .value }}
+    {{- end }}
+    {{- end }}
+  annotations:
+    {{- include "base-chart.annotations" $ | nindent 4 }}
+    {{- if hasKey $.Values "customAnnotations" }}
+    {{- range $.Values.customAnnotations }}
+    {{ .name }}: {{ .value }}
+    {{- end }}
+    {{- end }}
+spec:
+  storageClassName: {{ .storageClassName }}
+  accessModes:
+    - {{ .accessModes }}
+  resources:
+    requests:
+      storage: {{ .requests }}
+{{- end }}
+{{- end }}

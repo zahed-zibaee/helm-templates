@@ -1,0 +1,15 @@
+{{- if hasKey .Values "headlessService" }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.headlessService.name }}
+spec:
+  clusterIP: None
+  selector:
+    {{- include "base-chart.selectorLabels" $ | nindent 4 }}
+  ports:
+    - protocol: {{ .Values.headlessService.protocol }}
+      port: {{ .Values.headlessService.port }}
+      targetPort: {{ .Values.headlessService.port }}
+      name: {{ include "base-chart.name" $ }}-{{ .Values.headlessService.name }}-service
+{{- end }}

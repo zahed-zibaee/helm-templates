@@ -1,0 +1,28 @@
+{{- if hasKey .Values "configMap" }}
+{{- range .Values.configMap }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "base-chart.name" $ }}-{{ .name }}-cm
+  namespace: {{ $.Values.app.namespace }}
+  labels:
+    {{- include "base-chart.selectorLabels" $ | nindent 4 }}
+    {{- if hasKey $.Values "customLabels" }}
+    {{- range $.Values.customLabels }}
+    {{ .name }}: {{ .value }}
+    {{- end }}
+    {{- end }}
+  annotations:
+    {{- include "base-chart.annotations" $ | nindent 4 }}
+    {{- if hasKey $.Values "customAnnotations" }}
+    {{- range $.Values.customAnnotations }}
+    {{ .name }}: {{ .value }}
+    {{- end }}
+    {{- end }}
+data:
+  {{- range .files }}
+  {{ .name }}: {{- .value | toYaml | indent 1 }}
+  {{- end }}
+{{- end }}
+{{- end }}

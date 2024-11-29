@@ -1,0 +1,112 @@
+{{- if hasKey .Values "networkPolicy" }}
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: {{ include "base-chart.name" $ }}
+  namespace: {{ $.Values.app.namespace }}
+  labels:
+    {{- include "base-chart.selectorLabels" $ | nindent 4 }}
+    {{- if hasKey $.Values "customLabels" }}
+    {{- range $.Values.customLabels }}
+    {{ .name }}: {{ .value }}
+    {{- end }}
+    {{- end }}
+  annotations:
+    {{- include "base-chart.annotations" $ | nindent 4 }}
+    {{- if hasKey $.Values "customAnnotations" }}
+    {{- range $.Values.customAnnotations }}
+    {{ .name }}: {{ .value }}
+    {{- end }}
+    {{- end }}
+spec:
+  policyTypes: 
+    {{- if hasKey .Values.networkPolicy "ingress" }}
+    - Ingress
+    {{- end }}
+    {{- if hasKey .Values.networkPolicy "egress" }}
+    - Egress
+    {{- end }}
+  podSelector:
+    matchLabels:
+     {{- include "base-chart.selectorLabels" $ | nindent 6 }}
+
+{{- if .Values.networkPolicy.ingress }}
+  ingress:
+    - from:
+    {{- range .Values.networkPolicy.ingress }}
+        {{- if $.Values.networkPolicy.ingressDisbaleAccess }}
+          - namespaceSelector: {}
+          - podSelector: {}
+        {{- end }}
+      {{- if .namespaceSelector }}
+          - namespaceSelector: 
+              matchLabels:
+                {{- range .namespaceSelector }}
+                {{ .name }}: {{ .value }}
+                {{- end }}
+      {{- end }}
+      {{- if .podSelector }}
+          - podSelector: 
+              matchLabels:
+                {{- range .podSelector }}
+                {{ .name }}: {{ .value }}
+                {{- end }}
+      {{- end }}
+      {{- if .ports }}
+      ports:
+        {{- range .ports }}
+        - protocol: {{ .protocol }}
+          port: {{ .port }}
+        {{- end }}
+      {{- end }}
+    {{- end }}
+{{- end }}
+
+
+{{- if hasKey .Values.networkPolicy "egress" }}
+
+  egress:
+    - to:
+    {{- range .Values.networkPolicy.egress }}
+      {{- if $.Values.networkPolicy.egressDisableAccess }}
+        - namespaceSelector: {}
+        - podSelector: {}
+      {{- end }}
+      {{- if .namespaceSelector }}
+        - namespaceSelector: 
+              matchLabels:
+                {{- range .namespaceSelector }}
+                {{ .name }}: {{ .value }}
+                {{- end }}
+      {{- end }}
+      {{- if .podSelector }}
+        {{- range .podSelector }}
+        - podSelector: 
+            matchLabels:
+              {{ .name }}: {{ .value }}
+        {{- end }}
+      {{- end }}
+      {{- if .ipBlock }}
+        {{- range .ipBlock }}
+        - ipBlock:
+            cidr: {{ .cidr }}
+            {{- if .except }}
+            except:
+              {{- range .except }}
+              - {{ . }}
+              {{- end }}
+            {{- end }}    
+          {{- end }}
+        {{- end }}
+      {{- if .ports }}
+      ports:
+        {{- range .ports }}
+        - protocol: {{ .protocol }}
+          port: {{ .port }}
+        {{- end }}
+      {{- end }}
+
+
+    {{- end }}
+    {{- end }}
+{{- end }}

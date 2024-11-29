@@ -1,0 +1,271 @@
+app: 
+  name: stateful-test-app
+  type: microservice
+  environment: staging
+  namespace: "staging"
+  kind: Deployment # Deployment, StatefulSet
+
+customLabels: 
+  - name: "label-example1"
+    value: "label-value1"
+  - name: "label-example2"
+    value: "label-value2"
+
+customAnnotations:
+  - name: "annotations-example1"
+    value: "annotations-value1"
+  - name: "annotations-example2"
+    value: "annotations-value2" 
+
+replicaCount: 2
+revisionHistoryLimit: 2
+updateStrategy: 
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 0 
+    maxSurge: 1
+terminationGracePeriodSeconds: 60
+
+helperContainer:
+  image:
+    tag: v1.3.0
+    repository: myreg.com/helper-container
+
+command:
+  commandList:
+    #- "/bin/sh"
+    #- "-c"
+    - "/docker-entrypoint.sh"
+args:
+  argsList:
+    #- "sleep 100000"
+    - "nginx" 
+    - "-g"
+    - "daemon off;"
+
+image:
+  repository: nginxinc/nginx-unprivileged
+  tag: "stable-alpine"
+  pullPolicy: Always
+imagePullSecrets: 
+  name: "regsecret"
+
+cronjob:
+  - name: cron1
+    schedule: "30 2 * * *"
+    concurrencyPolicy: Forbid
+    activeDeadlineSeconds: 120
+    timeZone: "Asia/Tehran"
+    image: reg.snapp.supply/foo:latest
+    command:
+      commandList:
+        - "/bin/sh"
+        - "-c"
+    args:
+      argsList:
+        - "/bin/sh"
+        - "-c"
+    resources:
+      cpu: 200m
+      memory: 200Mi
+    restartPolicy: Never
+  - name: cron2
+    schedule: "30 * * * *"
+    concurrencyPolicy: Forbid
+    activeDeadlineSeconds: 5600
+    image: reg.snapp.supply/bar:latest
+    command:
+      commandList:
+        - "/bin/sh"
+        - "-c"
+    args:
+      argsList:
+        - "/bin/sh"
+        - "-c"
+    resources:
+      cpu: 200m
+      memory: 200Mi
+    restartPolicy: Never
+
+ingress:
+  - name: myingress1
+    sslTermination: edge
+    type: private
+    annotations: 
+      haproxy.router.openshift.io/timeout: 60s
+    hosts:
+      - host: chart-example.local
+        paths:
+          - path: /
+            pathType: ImplementationSpecific
+            port: 8080
+    tls:
+      hosts:
+        - https-example.foo.com
+      secretName: testsecret-tls
+
+services:
+  - name: service-example1
+    type: ClusterIP # can be LoadBalancerInterDc, LoadBalancerVpnAccess or ClusterIP
+    port: 8080
+    protocol: TCP
+  - name: service-example2
+    type: LoadBalancerInterDc
+    port: 8443
+    protocol: TCP
+
+headlessService:
+  name: service-headless1
+  port: 8000
+  protocol: TCP
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 1000Mi
+  requests:
+    cpu: 100m
+    memory: 200Mi
+
+
+configMap:
+  - name: configname1
+    path: /path/to/dir/12
+    readOnly: true
+    files:
+      - name: myfile.txt  
+        value: |
+          configvalue1
+          configvalue2
+      - name: myfile2.txt
+        value: |
+          configvalue12
+          configvalue22
+  - name: configname3
+    path: /path/to/dir/14
+    readOnly: true
+    files:
+      - name: myfile5.txt
+        value: |
+          configvalue5
+          configvalue2
+
+
+envVars:
+  - name: "key1"
+    value: "value1"
+  - name: "key2"
+    value: "value2"
+
+emptyDir:
+  - name: emptystorage-1
+    mountPath: /path/to/dir/5
+    sizeLimit: 100Mi
+
+volumes:
+  - name: data
+    subPath:
+      - path: tmp
+        mountPath: /var/atlassian/application-data/jira
+      - path: org
+        mountPath: /weird/path
+    singleMountPaths:
+      - mountPath: /opt/data
+    readOnly: true
+    accessModes: ReadWriteOnce
+    requests: 10Mi
+    storageClassName: ceph-rbd
+  - name: data2
+    subPath:
+      - path: tmp
+        mountPath: /var/atlassian/application-data/jira
+      - path: org
+        mountPath: /weird/path
+    singleMountPaths:
+      - mountPath: /opt/data
+    readOnly: true
+    accessModes: ReadWriteOnce
+    requests: 10Mi
+    storageClassName: ceph-rbd
+
+
+liveness:
+  failureThreshold: 3
+  httpGet:
+    path: /
+    port: 8080
+    scheme: HTTP
+  initialDelaySeconds: 15
+  periodSeconds: 15
+  timeoutSeconds: 10
+
+readiness:
+  failureThreshold: 3
+  httpGet:
+    path: /
+    port: 8080
+    scheme: HTTP
+  initialDelaySeconds: 15
+  periodSeconds: 15
+  successThreshold: 1
+  timeoutSeconds: 10
+
+lifecycle:
+  preStop:
+    command:
+      - ls
+      - -ltrh
+  postStart:
+    command:
+      - ls
+      - -lh
+      
+networkPolicy:
+  ingressDisbaleAccess: false
+  ingress:
+    - namespaceSelector:
+        - name: a
+          value: b
+    - namespaceSelector:
+        - name: x
+          value: y
+      podSelector:
+        - name: x
+          value: y
+      ports:
+        - protocol: TCP
+          port: 443
+
+  egressDisableAccess: false
+  egress:
+    - namespaceSelector:
+        - name: kubernetes.io/metadata.name
+          value: snappsupply-staging
+    - namespaceSelector:
+        - name: snappcloud.io/team
+          value: snappcloud
+      podSelector:
+        - name: x
+          value: y
+      ipBlock:
+        - cidr: 1.1.1.1/32
+          except:
+            - 2.2.2.2/32
+            - 3.3.3.3/32
+        - cidr: 1.1.1.1/32
+          except:
+            - 2.2.2.2/32
+            - 3.3.3.3/32
+      ports:
+        - protocol: TCP
+          port: 443
+
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 2
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
+serviceAccount:
+  annotations: {}
+  name: ""

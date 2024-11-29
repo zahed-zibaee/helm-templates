@@ -1,0 +1,51 @@
+{{- if hasKey .Values "ingress" }}
+{{- range .Values.ingress }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "base-chart.name" $ }}-{{ .name }}-ingress
+  namespace: {{ $.Values.app.namespace }}
+  labels:
+    router: {{ .type }}
+    {{- include "base-chart.selectorLabels" $ | nindent 4 }}
+    {{- if hasKey $.Values "customLabels" }}
+    {{- range $.Values.customLabels }}
+    {{ .name }}: {{ .value }}
+    {{- end }}
+    {{- end }}
+  annotations:
+    route.openshift.io/termination: {{ .sslTermination }}
+    {{- toYaml .annotations | nindent 4 }}
+    {{- include "base-chart.annotations" $ | nindent 4 }}
+    {{- if hasKey $.Values "customAnnotations" }}
+    {{- range $.Values.customAnnotations }}
+    {{ .name }}: {{ .value }}
+    {{- end }}
+    {{- end }}
+spec:
+  {{- if .tls }}
+  tls:
+    - hosts:
+        {{- range .tls.hosts }}
+        - {{ . | quote }}
+        {{- end }}
+      secretName: {{ .tls.secretName }}
+  {{- end }}
+  rules:
+    {{- range .hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{- if .serviceName}} {{ .serviceName }} {{- else }}  {{ include "base-chart.name" $ }} {{- end }}
+                port:
+                  number: {{ .port }}
+          {{- end }}
+    {{- end }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,44 @@
+{{- if hasKey .Values "cronjob" }}
+{{- range .Values.cronjob }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "base-chart.name" $ }}-{{ .name }}-cronjob
+spec:
+  schedule: {{ .schedule }}
+  concurrencyPolicy: {{ .concurrencyPolicy }}
+  {{- if hasKey . "timeZone" }}
+  timeZone: {{ .timeZone }}
+  {{- end }}
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: {{ .activeDeadlineSeconds }}
+      template:
+        spec:
+          containers:
+          - name: {{ include "base-chart.name" $ }}
+            image: {{ .image }}
+            {{- if .command }}
+            command:
+              {{- range .command.commandList }}
+              - "{{ . }}"
+              {{- end }}
+            {{- end }}
+            {{- if .args }}
+            args:
+              {{- range .args.argsList }}
+              - "{{ . }}"
+              {{- end }}
+            {{- end }}
+            {{- if .resources }}
+            resources:
+              limits:
+                cpu: {{ .resources.cpu }}
+                memory: {{ .resources.memory }}
+            {{- end }}
+          {{- if .restartPolicy }}
+          restartPolicy: {{ .restartPolicy }}
+          {{- end }}
+{{- end }}
+{{- end }}

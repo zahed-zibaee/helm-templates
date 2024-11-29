@@ -1,0 +1,359 @@
+{{- if eq .Values.app.kind "Deployment" }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "base-chart.name" . }}
+  namespace: {{ .Values.app.namespace }}
+  labels:
+    {{- include "base-chart.selectorLabels" . | nindent 4 }}
+    {{- if hasKey .Values "customLabels" }}
+    {{- range .Values.customLabels }}
+    {{ .name }}: {{ .value }}
+    {{- end }}
+    {{- end }}
+  annotations:
+    {{- include "base-chart.annotations" . | nindent 4 }}
+    {{- if hasKey .Values "customAnnotations" }}
+    {{- range .Values.customAnnotations }}
+    {{ .name }}: {{ .value }}
+    {{- end }}
+    {{- end }}
+spec:
+  {{- if not .Values.autoscaling }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  revisionHistoryLimit: {{ .Values.revisionHistoryLimit }}
+  strategy:
+    type: {{ .Values.updateStrategy.type }}
+    {{- if eq .Values.updateStrategy.type "RollingUpdate" }}
+    rollingUpdate:
+      maxSurge: {{ .Values.updateStrategy.rollingUpdate.maxSurge }}
+      maxUnavailable: {{ .Values.updateStrategy.rollingUpdate.maxUnavailable }}
+    {{- end }}
+  selector:
+    matchLabels:
+      {{- include "base-chart.selectorLabels" . | nindent 6 }}
+  template: 
+    metadata:
+      annotations:
+        {{- include "base-chart.annotations" . | nindent 8 }}
+        {{- if hasKey .Values "customAnnotations" }}
+        {{- range .Values.customAnnotations }}
+        {{ .name }}: {{ .value }}
+        {{- end }}
+        {{- end }}
+        {{- if  hasKey .Values "envVars" }}
+        checksum/envVars: {{ pick (include (print $.Template.BasePath "/configmap-envs.yaml") . | fromYaml) "data" | toYaml | sha256sum }}
+        {{- end }}
+        {{- if  hasKey .Values "configMap" }}
+        checksum/configMap: {{ pick (include (print $.Template.BasePath "/configmap.yaml") . | fromYaml) "data" | toYaml | sha256sum }}
+        {{- end }}
+        {{- if  hasKey .Values "ageEnvVars" }}
+        checksum/ageEnvVars: {{ pick (include (print $.Template.BasePath "/age-secret.yaml") . | fromYaml) "spec" | toYaml | sha256sum }}
+        {{- end }}
+        {{- if hasKey .Values "ageSecretFile" }}
+        checksum/ageSecretFile: {{ pick (include (print $.Template.BasePath "/age-secret-file.yaml") . | fromYaml) "spec" | toYaml | sha256sum }}
+        {{- end }}
+        {{- if hasKey .Values "vaultSecret" }}
+        checksum/vaultSecret: {{ pick (include (print $.Template.BasePath "/vault-static-secret.yaml") . | fromYaml) "spec" | toYaml | sha256sum }}
+        {{- end }}
+        {{- if hasKey .Values "vaultSecretFile" }}
+        checksum/vaultSecretFile: {{ pick (include (print $.Template.BasePath "/vault-secret-file.yaml") . | fromYaml) "spec" | toYaml | sha256sum }}
+        {{- end }}
+      labels:
+        {{- include "base-chart.selectorLabels" . | nindent 8 }}
+        {{- if hasKey .Values "customLabels" }}
+        {{- range .Values.customLabels }}
+        {{ .name }}: {{ .value }}
+        {{- end }}
+        {{- end }}
+    spec:
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+        - name: {{ .Values.imagePullSecrets.name }}
+      {{- end }}
+      {{- if .Values.serviceAccount }}
+      serviceAccountName: {{ include "base-chart.name" . }}-sa
+      {{- end }}
+      containers:
+        {{- if .Values.helperContainer }}
+        - name: helper-container
+          image: {{ .Values.helperContainer.image.repository }}:{{ .Values.helperContainer.image.tag }}
+          imagePullPolicy: Always
+          resources:
+            limits:
+              cpu: 100m
+              memory: 200Mi
+            requests:
+              cpu: 50m
+              memory: 100Mi
+          {{- if or .Values.envVars .Values.ageEnvVars .Values.vaultSecret }}
+          {{- if .Values.envVars }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "base-chart.name" . }}-env-cm
+          {{- end }}
+          {{- if or .Values.ageEnvVars .Values.vaultSecret }}
+            - secretRef:
+                name: {{ include "base-chart.name" . }}-env-secret
+          {{- end }}
+          {{- end }}
+          {{- if or .Values.volumes .Values.emptyDir .Values.configMap .Values.ageSecretFile .Values.vaultSecretFile }}
+          volumeMounts:
+            {{- if hasKey .Values "volumes" }}
+            {{- range .Values.volumes }}
+            {{- if .subPath }}
+            {{- $claimName := .name }}
+            {{- $readOnly := .readOnly }}
+            {{- range .subPath }}
+            - name: {{ include "base-chart.name" $ }}-{{ $claimName }}-claim
+              subPath: {{ .path }}
+              mountPath: {{ .mountPath }}
+              {{- if $readOnly }}
+              readOnly: true
+              {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- if .singleMountPaths }}
+            {{- $claimName := .name }}
+            {{- $readOnly := .readOnly }}
+            {{- range .singleMountPaths }}
+            - name: {{ include "base-chart.name" $ }}-{{ $claimName }}-claim
+              mountPath: {{ .mountPath}}
+              {{- if $readOnly }}
+              readOnly: true
+              {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- if .Values.emptyDir }}
+            {{- range .Values.emptyDir }}
+            - name: {{ include "base-chart.name" $ }}-{{ .name }}-emptydir
+              mountPath: {{ .mountPath }}
+            {{- end }}
+            {{- end }}
+            {{- if .Values.configMap }}
+            {{- range .Values.configMap }}
+            - name: {{ include "base-chart.name" $ }}-{{ .name }}-cm-claim
+              mountPath: {{ .path }}
+              {{- if .readOnly }}
+              readOnly: true
+              {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- if .Values.ageSecretFile }}
+            {{- range .Values.ageSecretFile.spec }}
+            - name: {{ include "base-chart.name" $ }}-secret-file-{{ .name }}
+              mountPath: {{ .path }}
+            {{- end }}
+            {{- end }}
+            {{- if .Values.vaultSecretFile }}
+            {{- range .Values.vaultSecretFile.spec }}
+            - name: {{ include "base-chart.name" $ }}-secret-file-{{ .secretName }}
+              mountPath: {{ .path }}
+            {{- end }}
+            {{- end }}
+          {{- end }}
+        {{- end }}
+        - name: {{ include "base-chart.name" . }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if .Values.command }}
+          command:
+            {{- range .Values.command.commandList }}
+            - "{{ . }}"
+            {{- end }}
+          {{- end }}
+          {{- if .Values.args }}
+          args:
+            {{- range .Values.args.argsList }}
+            - "{{ . }}"
+            {{- end }}
+          {{- end }}
+          {{- if hasKey .Values "services" }}
+          ports:
+            {{- range .Values.services }}
+            - containerPort: {{ .port }}
+              protocol: {{ .protocol }}
+            {{- end }}
+          {{- end }}
+          {{- if or .Values.envVars .Values.ageEnvVars .Values.vaultSecret }}
+          {{- if .Values.envVars }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "base-chart.name" . }}-env-cm
+          {{- end }}
+          {{- if or .Values.ageEnvVars .Values.vaultSecret }}
+            - secretRef:
+                name: {{ include "base-chart.name" . }}-env-secret
+          {{- end }}
+          {{- end }}
+          {{- if .Values.resources }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          {{- end }}
+          {{- if .Values.liveness }}
+          livenessProbe:
+            {{- toYaml .Values.liveness | nindent 12 }}
+          {{- end }}
+          {{- if .Values.readiness }}
+          readinessProbe:
+            {{- toYaml .Values.readiness | nindent 12 }}
+          {{- end }}
+          {{- if .Values.lifecycle }}
+          lifecycle:
+            {{- if .Values.lifecycle.postStart }}
+            postStart:
+              exec:
+                command:
+                  {{ toYaml .Values.lifecycle.postStart.command | nindent 18 }}
+            {{- end }}
+            {{- if .Values.lifecycle.preStop }}
+            postStart:
+              exec:
+                command:
+                  {{ toYaml .Values.lifecycle.preStop.command | nindent 18 }}
+            {{- end }}
+          {{- end }}
+          {{- if or .Values.volumes .Values.emptyDir .Values.configMap .Values.ageSecretFile .Values.vaultSecretFile }}
+          volumeMounts:
+            {{- if hasKey .Values "volumes" }}
+            {{- range .Values.volumes }}
+            {{- if .subPath }}
+            {{- $claimName := .name }}
+            {{- $readOnly := .readOnly }}
+            {{- range .subPath }}
+            - name: {{ include "base-chart.name" $ }}-{{ $claimName }}-claim
+              subPath: {{ .path }}
+              mountPath: {{ .mountPath }}
+              {{- if $readOnly }}
+              readOnly: true
+              {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- if .singleMountPaths }}
+            {{- $claimName := .name }}
+            {{- $readOnly := .readOnly }}
+            {{- range .singleMountPaths }}
+            - name: {{ include "base-chart.name" $ }}-{{ $claimName }}-claim
+              mountPath: {{ .mountPath}}
+              {{- if $readOnly }}
+              readOnly: true
+              {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- if .Values.emptyDir }}
+            {{- range .Values.emptyDir }}
+            - name: {{ include "base-chart.name" $ }}-{{ .name }}-emptydir
+              mountPath: {{ .mountPath }}
+            {{- end }}
+            {{- end }}
+            {{- if .Values.configMap }}
+            {{- range .Values.configMap }}
+            - name: {{ include "base-chart.name" $ }}-{{ .name }}-cm-claim
+              mountPath: {{ .path }}
+              {{- if .readOnly }}
+              readOnly: true
+              {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- if .Values.ageSecretFile }}
+            {{- range .Values.ageSecretFile.spec }}
+            - name: {{ include "base-chart.name" $ }}-secret-file-{{ .name }}
+              mountPath: {{ .path }}
+            {{- end }}
+            {{- end }}
+            {{- if .Values.vaultSecretFile }}
+            {{- range .Values.vaultSecretFile.spec }}
+            - name: {{ include "base-chart.name" $ }}-secret-file-{{ .secretName }}
+              mountPath: {{ .path }}
+            {{- end }}
+            {{- end }}
+          {{- end }}
+      volumes:
+        {{- if .Values.sidecar }}
+        {{- range .Values.sidecar }}
+        {{- $containerName := .containerName }}
+        {{- if .volumes }}
+        {{- range .volumes }}
+        - name: {{ include "base-chart.name" $ }}-side-{{ $containerName }}-{{ .name }}-claim
+          persistentVolumeClaim:
+            claimName: {{ include "base-chart.name" $ }}-side-{{ $containerName }}-{{ .name }}-pvc
+            {{- if .readOnly }}
+            readOnly: true
+            {{- end }}
+        {{- end }}
+        {{- end }}
+        {{- if .emptyDir }}
+        {{- range .emptyDir }}
+        - name: {{ include "base-chart.name" $ }}-side-{{ $containerName }}-{{ .name }}-emptydir
+          emptyDir:
+            sizeLimit: {{ .sizeLimit }}
+        {{- end }}
+        {{- end }}
+        {{- if .configMap }}
+        {{- range .configMap }}
+        - name: {{ include "base-chart.name" $ }}-side-{{ $containerName }}-{{ .name }}-cm-claim
+          configMap:
+            name: {{ include "base-chart.name" $ }}-side-{{ $containerName }}-{{ .name }}-cm
+        {{- end }}
+        {{- end }}
+        {{- if $.Values.ageSecretFile }}
+        {{- range $.Values.ageSecretFile.spec }}
+        - name: {{ include "base-chart.name" $ }}-side-{{ $containerName }}-secret-file-{{ .name }}
+          secret:
+            secretName: {{ include "base-chart.name" $ }}-side-{{ $containerName }}-secret-file-{{ .name }}
+        {{- end }}
+        {{- end }}
+        {{- if $.Values.vaultSecretFile }}
+        {{- range $.Values.vaultSecretFile.spec }}
+        - name: {{ include "base-chart.name" $ }}-side-{{ $containerName }}-secret-file-{{ .secretName }}
+          secret:
+            secretName: {{ include "base-chart.name" $ }}-side-{{ $containerName }}-secret-file-{{ .secretName }}
+        {{- end }}
+        {{- end }}
+        {{- end }}
+        {{- end }}
+        {{- if $.Values.volumes }}
+        {{- range $.Values.volumes }}
+        - name: {{ include "base-chart.name" $ }}-{{ .name }}-claim
+          persistentVolumeClaim:
+            claimName: {{ include "base-chart.name" $ }}-{{ .name }}-pvc
+            {{- if .readOnly }}
+            readOnly: true
+            {{- end }}
+        {{- end }}
+        {{- end }}
+        {{- if $.Values.emptyDir }}
+        {{- range $.Values.emptyDir }}
+        - name: {{ include "base-chart.name" $ }}-{{ .name }}-emptydir
+          emptyDir:
+            sizeLimit: {{ .sizeLimit }}
+        {{- end }}
+        {{- end }}
+        {{- if $.Values.configMap }}
+        {{- range $.Values.configMap }}
+        - name: {{ include "base-chart.name" $ }}-{{ .name }}-cm-claim
+          configMap:
+            name: {{ include "base-chart.name" $ }}-{{ .name }}-cm
+        {{- end }}
+        {{- end }}
+        {{- if $.Values.ageSecretFile }}
+        {{- range $.Values.ageSecretFile.spec }}
+        - name: {{ include "base-chart.name" $ }}-secret-file-{{ .name }}
+          secret:
+            secretName: {{ include "base-chart.name" $ }}-secret-file-{{ .name }}
+        {{- end }}
+        {{- end }}
+        {{- if $.Values.vaultSecretFile }}
+        {{- range $.Values.vaultSecretFile.spec }}
+        - name: {{ include "base-chart.name" $ }}-secret-file-{{ .secretName }}
+          secret:
+            secretName: {{ include "base-chart.name" $ }}-secret-file-{{ .secretName }}
+        {{- end }}
+        {{- end }}
+{{- end }}
