@@ -1,5 +1,5 @@
 apiVersion: v2
-name: package bo
+name: package helm
 description: a helm for rule them all
 
 # A chart can be either an 'application' or a 'library' chart.
